@@ -24,7 +24,7 @@ def reward_function(params):
     MIN_REWARD = 1e-3
     ABS_STEERING_THRESHOLD = 30
     STEPS_THRESHOLD = 300
-    SPEED_THRESHOLD = 3.0
+    SPEED_THRESHOLD = 2.0
 
     def all_wheels_on_track_reward(current_reward):
         if not all_wheels_on_track:
@@ -59,7 +59,7 @@ def reward_function(params):
             current_reward = MIN_REWARD  # likely crashed/ close to off track
         return current_reward
 
-    def follow_the_center_line(current_reward):
+    def straight_line_going_fast(current_reward):
         # Positive reward if the car is in a straight line going fast
         if abs_steering_angle < 0.1 and speed > (SPEED_THRESHOLD * 0.8):
             current_reward *= 1.2
@@ -76,6 +76,7 @@ def reward_function(params):
         # Calculate difference between track direction and car heading angle
         direction_diff = abs(suggested_direction - heading)
 
+        marker_direction = 0.1
         marker_direction_1 = 1.0
         marker_direction_2 = 2.0
         marker_direction_3 = 3.0
@@ -83,27 +84,23 @@ def reward_function(params):
         marker_direction_5 = 5.0
         marker_direction_10 = 10.0
 
-        if direction_diff <= marker_direction_1:
+        if direction_diff <= marker_direction:
             current_reward *= 1.6
+        if direction_diff <= marker_direction_1:
+            current_reward *= 1.3
         elif direction_diff <= marker_direction_2:
-            current_reward *= 1.4
-        elif direction_diff <= marker_direction_3:
             current_reward *= 1.2
+        elif direction_diff <= marker_direction_3:
+            current_reward *= 1.1
         elif direction_diff <= marker_direction_4:
             current_reward *= 1.0
         elif direction_diff <= marker_direction_5:
-            current_reward *= 0.8
+            current_reward *= 0.9
         elif direction_diff <= marker_direction_10:
-            current_reward *= 0.6
+            current_reward *= 0.8
         else:
-            current_reward *= 0.4
+            current_reward *= 0.5
 
-        return current_reward
-
-    def stay_inside_the_two_borders(current_reward):
-        # Give a high reward if no wheels go off the track and the agent is somewhere in between the track borders
-        if all_wheels_on_track and (0.5 * track_width - distance_from_center) >= 0.05:
-            current_reward *= 1.2
         return current_reward
 
     def steps_reward(current_reward):
@@ -120,16 +117,15 @@ def reward_function(params):
 
     def throttle(current_reward):
         # Decrease throttle while steering
-        if speed > 2.5 - (0.4 * abs_steering_angle):
+        if speed > (SPEED_THRESHOLD * 0.6) - (0.4 * abs_steering_angle):
             current_reward *= 0.8
         return current_reward
 
     reward = all_wheels_on_track_reward(reward)
     reward = distance_from_center_normalized_reward(reward)
-    reward = follow_the_center_line(reward)
+    reward = straight_line_going_fast(reward)
     reward = direction(reward)
     reward = steps_reward(reward)
-    # reward = stay_inside_the_two_borders(reward)
     reward = prevent_zig_zag(reward)
     reward = throttle(reward)
 
