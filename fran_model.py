@@ -1,12 +1,10 @@
 # Imports
 import math
 
-
 def reward_function(params):
 
     # Repository: https://github.com/kinvernot/aws-deep-racer-models
 
-    # Read input parameters
     all_wheels_on_track = params['all_wheels_on_track']
     distance_from_center = params['distance_from_center']
     track_width = params['track_width']
@@ -16,15 +14,11 @@ def reward_function(params):
     closest_waypoints = params['closest_waypoints']
     heading = params['heading']
     reward = math.exp(-6 * distance_from_center)  # negative exponential penalty
-    steps = params['steps']
-    progress = params['progress']
-
     # constants
     MAX_REWARD = 1e2
     MIN_REWARD = 1e-3
     DIRECTION_THRESHOLD = 10.0
     ABS_STEERING_THRESHOLD = 30
-    STEPS_THRESHOLD = 300
 
     def all_wheels_on_track_reward(current_reward):
         if not all_wheels_on_track:
@@ -33,12 +27,12 @@ def reward_function(params):
             current_reward = MAX_REWARD
         return current_reward
 
-    def distance_from_center_normalized_reward(current_reward):
+    def distance_from_center_reward_normalized(current_reward):
         # Normalize the car distance from center so we can use it in different tracks
         # As distance from center often stay around 0(center) to 0.5 of track_width.
-        # any normalized_distance > 0.5 would indicate it is almost offtrack
-        normalized_distance = distance_from_center / track_width
-        return distance_from_center_reward(current_reward, normalized_distance)
+        # any normDistance > 0.5 would indicate it is almost offtrack
+        normDistance = distance_from_center / track_width
+        return distance_from_center_reward(current_reward, normDistance)
 
     def distance_from_center_reward(current_reward, distance):
         # Calculate markers that are at varying distances away from the center line
@@ -86,16 +80,10 @@ def reward_function(params):
             current_reward *= 1.2
         return current_reward
 
-    def steps_reward(current_reward):
-        # Give additional reward if the car pass every 50 steps faster than expected
-        if (steps % 50) == 0 and progress >= (steps / STEPS_THRESHOLD) * 100:
-            current_reward *= 1.2
-        return current_reward
-
     def prevent_zig_zag(current_reward):
         # Penalize reward if the car is steering too much (your action space will matter)
         if abs_steering_angle > ABS_STEERING_THRESHOLD:
-            current_reward *= 0.8
+            current_reward += 0.8
         return current_reward
 
     def throttle(current_reward):
@@ -105,10 +93,10 @@ def reward_function(params):
         return current_reward
 
     reward = all_wheels_on_track_reward(reward)
-    reward = distance_from_center_normalized_reward(reward)
+    reward = distance_from_center_reward_normalized(reward)
+    # reward = distance_from_center_reward(reward, distance_from_center)
     reward = follow_the_center_line(reward)
     reward = direction(reward)
-    reward = steps_reward(reward)
     reward = stay_inside_the_two_borders(reward)
     reward = prevent_zig_zag(reward)
     reward = throttle(reward)
