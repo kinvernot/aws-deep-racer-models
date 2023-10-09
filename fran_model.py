@@ -15,22 +15,21 @@ def reward_function(params):
     waypoints = params['waypoints']
     closest_waypoints = params['closest_waypoints']
     heading = params['heading']
-    reward = math.exp(-6 * distance_from_center)  # negative exponential penalty
     steps = params['steps']
     progress = params['progress']
 
     # constants
-    MAX_REWARD = 1e2
     MIN_REWARD = 1e-3
+    # depends on training configuration
     ABS_STEERING_THRESHOLD = 30
-    STEPS_THRESHOLD = 300
-    SPEED_THRESHOLD = 2.0
+    SPEED_THRESHOLD = 2.5
 
-    def all_wheels_on_track_reward(current_reward):
-        if not all_wheels_on_track:
-            current_reward = MIN_REWARD
+    def all_wheels_on_track_and_steps_reward(current_reward):
+        if all_wheels_on_track and steps > 0:
+            # motivated the model to stay on the track and get around in as few steps as possible
+            current_reward = ((progress / steps) * 100) + speed ** 2
         else:
-            current_reward = MAX_REWARD
+            current_reward = MIN_REWARD
         return current_reward
 
     def distance_from_center_normalized_reward(current_reward):
@@ -41,28 +40,24 @@ def reward_function(params):
         return distance_from_center_reward(current_reward, normalized_distance)
 
     def distance_from_center_reward(current_reward, distance):
-        # Calculate markers that are at varying distances away from the center line
-        marker_1 = 0.1 * track_width
-        marker_2 = 0.2 * track_width
-        marker_3 = 0.3 * track_width
-        marker_4 = 0.5 * track_width
         # Give higher reward if the car is closer to center line and vice versa
-        if distance <= marker_1:
+        if distance <= track_width * 0.1:
             current_reward *= 1.5
-        elif distance <= marker_2:
+        elif distance <= track_width * 0.2:
             current_reward *= 1.2
-        elif distance <= marker_3:
+        elif distance <= track_width * 0.3:
+            current_reward *= 1.0
+        elif distance <= track_width * 0.5:
             current_reward *= 0.9
-        elif distance <= marker_4:
-            current_reward *= 0.7
         else:
-            current_reward = MIN_REWARD  # likely crashed/ close to off track
+            # likely crashed/ close to off track [any normalized_distance > 0.5 would indicate it is almost offtrack]
+            current_reward = MIN_REWARD
         return current_reward
 
     def straight_line_going_fast(current_reward):
         # Positive reward if the car is in a straight line going fast
         if abs_steering_angle < 0.1 and speed > (SPEED_THRESHOLD * 0.8):
-            current_reward *= 1.2
+            current_reward *= 1.3
         return current_reward
 
     def direction(current_reward):
@@ -74,59 +69,41 @@ def reward_function(params):
         # Convert to degrees
         suggested_direction = math.degrees(suggested_direction)
         # Calculate difference between track direction and car heading angle
-        direction_diff = abs(suggested_direction - heading)
+        direction_difference = abs(suggested_direction - heading)
 
-        marker_direction = 0.1
-        marker_direction_1 = 1.0
-        marker_direction_2 = 2.0
-        marker_direction_3 = 3.0
-        marker_direction_4 = 4.0
-        marker_direction_5 = 5.0
-        marker_direction_10 = 10.0
-
-        if direction_diff <= marker_direction:
+        if direction_difference <= 0.1:
             current_reward *= 1.6
-        if direction_diff <= marker_direction_1:
+        if direction_difference <= 1.0:
             current_reward *= 1.3
-        elif direction_diff <= marker_direction_2:
+        elif direction_difference <= 2.0:
             current_reward *= 1.2
-        elif direction_diff <= marker_direction_3:
+        elif direction_difference <= 3.0:
             current_reward *= 1.1
-        elif direction_diff <= marker_direction_4:
+        elif direction_difference <= 4.0:
             current_reward *= 1.0
-        elif direction_diff <= marker_direction_5:
+        elif direction_difference <= 5.0:
             current_reward *= 0.9
-        elif direction_diff <= marker_direction_10:
+        elif direction_difference <= 10.0:
             current_reward *= 0.8
         else:
             current_reward *= 0.5
 
         return current_reward
 
-    def steps_reward(current_reward):
-        # Give additional reward if the car pass every 50 steps faster than expected
-        if (steps % 50) == 0 and progress >= (steps / STEPS_THRESHOLD) * 100:
-            current_reward *= 1.2
-        return current_reward
-
     def prevent_zig_zag(current_reward):
         # Penalize reward if the car is steering too much (your action space will matter)
         if abs_steering_angle > ABS_STEERING_THRESHOLD:
             current_reward *= 0.8
-        return current_reward
-
-    def throttle(current_reward):
         # Decrease throttle while steering
         if speed > (SPEED_THRESHOLD * 0.6) - (0.4 * abs_steering_angle):
             current_reward *= 0.8
         return current_reward
 
-    reward = all_wheels_on_track_reward(reward)
-    reward = distance_from_center_normalized_reward(reward)
-    reward = straight_line_going_fast(reward)
+    reward = 0.0
+    reward = all_wheels_on_track_and_steps_reward(reward)
     reward = direction(reward)
-    reward = steps_reward(reward)
+    reward = distance_from_center_normalized_reward(reward)
     reward = prevent_zig_zag(reward)
-    reward = throttle(reward)
+    reward = straight_line_going_fast(reward)
 
     return float(reward)
