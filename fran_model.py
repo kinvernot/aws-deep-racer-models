@@ -19,17 +19,18 @@ def reward_function(params):
     progress = params['progress']
 
     # constants
+    MAX_REWARD = 1e2
     MIN_REWARD = 1e-3
     # depends on training configuration
+    STEPS_THRESHOLD = 300  # can this value be obtained from params[track_length] ?
     ABS_STEERING_THRESHOLD = 30
-    SPEED_THRESHOLD = 2.5
+    SPEED_THRESHOLD = 3
 
-    def all_wheels_on_track_and_steps_reward(current_reward):
-        if all_wheels_on_track and steps > 0:
-            # motivated the model to stay on the track and get around in as few steps as possible
-            current_reward = ((progress / steps) * 100) + speed ** 2
-        else:
+    def all_wheels_on_track_reward(current_reward):
+        if not all_wheels_on_track:
             current_reward = MIN_REWARD
+        else:
+            current_reward = MAX_REWARD
         return current_reward
 
     def distance_from_center_normalized_reward(current_reward):
@@ -90,20 +91,28 @@ def reward_function(params):
 
         return current_reward
 
+    def steps_reward(current_reward):
+        # Need to improve this reward!
+        # Give additional reward if the car pass every 50 steps faster than expected
+        if (steps % 50) == 0 and progress >= (steps / STEPS_THRESHOLD) * 100:
+            current_reward *= 1.2
+        return current_reward
+
     def prevent_zig_zag(current_reward):
         # Penalize reward if the car is steering too much (your action space will matter)
         if abs_steering_angle > ABS_STEERING_THRESHOLD:
             current_reward *= 0.8
         # Decrease throttle while steering
-        if speed > (SPEED_THRESHOLD * 0.6) - (0.4 * abs_steering_angle):
+        if speed > (SPEED_THRESHOLD * 0.5) - (0.4 * abs_steering_angle):
             current_reward *= 0.8
         return current_reward
 
     reward = 0.0
-    reward = all_wheels_on_track_and_steps_reward(reward)
+    reward = all_wheels_on_track_reward(reward)
     reward = direction(reward)
     reward = distance_from_center_normalized_reward(reward)
     reward = prevent_zig_zag(reward)
+    reward = steps_reward(reward)
     reward = straight_line_going_fast(reward)
 
     return float(reward)
