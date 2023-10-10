@@ -24,7 +24,7 @@ def reward_function(params):
     MIN_REWARD = 1e-3
     ABS_STEERING_THRESHOLD = 30
     STEPS_THRESHOLD = 300
-    SPEED_THRESHOLD = 2.5
+    SPEED_THRESHOLD = 3.0
 
     def all_wheels_on_track_reward(current_reward):
         if not all_wheels_on_track:
@@ -56,13 +56,13 @@ def reward_function(params):
             current_reward = MIN_REWARD  # likely crashed/ close to off track
         return current_reward
 
-    def straight_line_going_fast(current_reward):
+    def straight_line_going_fast_reward(current_reward):
         # Positive reward if the car is in a straight line going fast
         if abs_steering_angle < 0.1 and speed > (SPEED_THRESHOLD * 0.8):
             current_reward *= 1.5
         return current_reward
 
-    def direction(current_reward):
+    def direction_and_speed_rewards(current_reward):
         # Calculate the direction of the center line based on the closest waypoints
         next_point = waypoints[int(closest_waypoints[1])]
         prev_point = waypoints[int(closest_waypoints[0])]
@@ -73,27 +73,48 @@ def reward_function(params):
         # Calculate difference between track direction and car heading angle
         direction_diff = abs(suggested_direction - heading)
 
-        marker_direction = 0.1
-        marker_direction_1 = 1.0
-        marker_direction_2 = 2.0
-        marker_direction_3 = 3.0
-        marker_direction_4 = 4.0
-        marker_direction_5 = 5.0
-        marker_direction_10 = 10.0
+        current_reward = direction_reward(current_reward, direction_diff)
+        current_reward = speed_reward(current_reward, direction_diff)
+        return current_reward
 
-        if direction_diff <= marker_direction:
-            current_reward *= 1.6
-        if direction_diff <= marker_direction_1:
+    def speed_reward(current_reward, direction_difference):
+        if direction_difference <= 0.5:
+            if speed > (SPEED_THRESHOLD * 0.9):
+                current_reward *= 1.6
+            if speed > (SPEED_THRESHOLD * 0.8):
+                current_reward *= 1.5
+            elif speed > (SPEED_THRESHOLD * 0.7):
+                current_reward *= 1.3
+            elif speed > (SPEED_THRESHOLD * 0.6):
+                current_reward *= 1.1
+            elif speed > (SPEED_THRESHOLD * 0.5):
+                current_reward *= 1.0
+            elif speed > (SPEED_THRESHOLD * 0.4):
+                current_reward *= 0.9
+            elif speed > (SPEED_THRESHOLD * 0.3):
+                current_reward *= 0.8
+            elif speed > (SPEED_THRESHOLD * 0.2):
+                current_reward *= 0.6
+            elif speed > (SPEED_THRESHOLD * 0.1):
+                current_reward *= 0.5
+
+        return current_reward
+
+    def direction_reward(current_reward, direction_difference):
+
+        if direction_difference <= 0.1:
+            current_reward *= 1.5
+        if direction_difference <= 1.0:
             current_reward *= 1.3
-        elif direction_diff <= marker_direction_2:
+        elif direction_difference <= 2.0:
             current_reward *= 1.2
-        elif direction_diff <= marker_direction_3:
+        elif direction_difference <= 3.0:
             current_reward *= 1.1
-        elif direction_diff <= marker_direction_4:
+        elif direction_difference <= 4.0:
             current_reward *= 1.0
-        elif direction_diff <= marker_direction_5:
+        elif direction_difference <= 5.0:
             current_reward *= 0.9
-        elif direction_diff <= marker_direction_10:
+        elif direction_difference <= 10.0:
             current_reward *= 0.8
         else:
             current_reward *= 0.5
@@ -117,8 +138,8 @@ def reward_function(params):
 
     reward = all_wheels_on_track_reward(reward)
     reward = distance_from_center_reward(reward)
-    reward = straight_line_going_fast(reward)
-    reward = direction(reward)
+    reward = straight_line_going_fast_reward(reward)
+    reward = direction_and_speed_rewards(reward)
     reward = steps_reward(reward)
     reward = prevent_zig_zag(reward)
 
